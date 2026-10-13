@@ -1,7 +1,7 @@
 // ==========================================
 // Projekt: Shugo-Eventplaner (Version 7.4)
-// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Klassen-Emojis (X/5)
-// und persistenter JSON-Speicherung (neustartsicher).
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit lokalem Parser & Debugging, 
+// Live-Dashboard mit Klassen-Emojis (X/5) und persistenter JSON-Speicherung.
 // ==========================================
 
 const fs = require('fs');
@@ -29,7 +29,6 @@ const client = new Client({
 
 const DATA_FILE = path.join(__dirname, 'events.json');
 
-// Maps für Events, Dashboards und Sessions
 const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
 const wizardSessions = new Map();   // userId -> Wizard State
@@ -37,7 +36,6 @@ const wizardSessions = new Map();   // userId -> Wizard State
 // Hilfsfunktionen zum Laden und Speichern der JSON-Datei
 function saveEventsToDisk() {
     try {
-        // Da Map nicht direkt mit JSON.stringify kompatibel ist, konvertieren wir sie in ein Array/Objekt
         const plainData = {};
         for (const [msgId, ev] of activeEvents.entries()) {
             const signupsObj = {};
@@ -152,7 +150,7 @@ async function updateAllDashboards() {
     }
 }
 
-// Hintergrund-Check für Auto-Delete mit vollem Debugging & JSON-Update
+// Hintergrund-Check für Auto-Delete MIT Debugging-Block & JSON-Update
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
@@ -185,7 +183,7 @@ setInterval(async () => {
 }, 10000);
 
 client.once('ready', async () => {
-    loadEventsFromDisk(); // Events beim Start laden
+    loadEventsFromDisk();
     console.log('[Shugo-Eventplaner v7.4] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
@@ -330,7 +328,7 @@ client.on('interactionCreate', async (interaction) => {
                 emoji: emoji
             });
 
-            saveEventsToDisk(); // Direkt in JSON speichern
+            saveEventsToDisk();
 
             let signupText = '';
             for (const data of eventData.signups.values()) {
@@ -364,7 +362,7 @@ client.on('interactionCreate', async (interaction) => {
 
             if (eventData.signups.has(interaction.user.id)) {
                 eventData.signups.delete(interaction.user.id);
-                saveEventsToDisk(); // Direkt in JSON speichern
+                saveEventsToDisk();
 
                 let signupText = '';
                 for (const data of eventData.signups.values()) {
@@ -406,7 +404,7 @@ client.on('interactionCreate', async (interaction) => {
             } catch (err) {}
 
             activeEvents.delete(targetMsgId);
-            saveEventsToDisk(); // Direkt in JSON speichern
+            saveEventsToDisk();
             await updateAllDashboards();
             await interaction.update({ content: '🗑️ Event wurde erfolgreich gelöscht.', components: [] });
         }
@@ -452,8 +450,11 @@ client.on('messageCreate', async (message) => {
             const [day, month, year] = datePart.split('.');
             const [hour, minute] = timePart.split(':');
 
-            const isoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
-            expireTimestamp = new Date(isoString).getTime();
+            // Lokaler Parser (verhindert UTC/Zeitzonen-Verschiebung)
+            const targetDate = new Date(year, month - 1, day, hour, minute, 0);
+            expireTimestamp = targetDate.getTime();
+            
+            console.log(`[Auto-Delete Parser] Event "${session.title}" geparst. Ziel-Timestamp: ${expireTimestamp} (${targetDate.toLocaleString()})`);
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
@@ -512,7 +513,7 @@ client.on('messageCreate', async (message) => {
                 signups: new Map()
             });
 
-            saveEventsToDisk(); // Sofort in JSON speichern
+            saveEventsToDisk();
             await updateAllDashboards();
 
             const deleteBtn = new ButtonBuilder()
