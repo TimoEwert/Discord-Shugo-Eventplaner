@@ -30,11 +30,22 @@ const activeDashboards = new Map(); // channelId -> dashboardMessageId
 const wizardSessions = new Map();   // userId -> Wizard State
 
 const PREDEFINED_EVENT_TITLES = [
-    { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
-    { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
-    { label: 'Dark Poeta', value: 'Dark Poeta (S-Rank)', description: 'PvE Instanz Farmen', emoji: '👻' },
-    { label: 'Event 1', value: 'Event 1 (Custom)', description: 'Benutzerdefiniertes Event 1', emoji: '📌' },
-    { label: 'Event 2', value: 'Event 2 (Custom)', description: 'Benutzerdefiniertes Event 2', emoji: '📌' },
+    { label: 'Kraohöhle (Erkundung)', value: 'Kraohöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Kraohöhle (Eroberung)', value: 'Kraohöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Draupnir (Erkundung)', value: 'Draupnir Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Draupnir (Eroberung)', value: 'Draupnir Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Uruguguschlucht (Erkundung)', value: 'Uruguguschlucht Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Uruguguschlucht (Eroberung)', value: 'Uruguguschlucht Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Vakrons Luftinsel (Erkundung)', value: 'Vakrons Luftinsel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Vakrons Luftinsel (Eroberung)', value: 'Vakrons Luftinsel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Feuertempel (Erkundung)', value: 'Feuertempel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Feuertempel (Eroberung)', value: 'Feuertempel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Grimmhornhöhle (Erkundung)', value: 'Grimmhornhöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
+    { label: 'Grimmhornhöhle (Eroberung)', value: 'Grimmhornhöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
+    { label: 'Abyss Raid', value: 'Abyss Raid', description: 'Abyss Raid', emoji: '🔥' },
+    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨' },
+    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️' },
+    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾' },
     { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️' }
 ];
 
