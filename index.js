@@ -112,29 +112,36 @@ async function updateAllDashboards() {
     }
 }
 
-// Hintergrund-Check für Auto-Delete
+// Hintergrund-Check für Auto-Delete mit Debugging
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
 
     for (const [messageId, eventData] of activeEvents.entries()) {
-        if (eventData.expireTimestamp && now >= eventData.expireTimestamp) {
-            try {
-                const channel = await client.channels.fetch(eventData.channelId).catch(() => null);
-                if (channel) {
-                    const msg = await channel.messages.fetch(messageId).catch(() => null);
-                    if (msg) await msg.delete().catch(() => null);
+        if (eventData.expireTimestamp) {
+            console.log(`[Auto-Check] Event "${eventData.title}": Jetzt=${now} | Ziel=${eventData.expireTimestamp} | Differenz=${Math.round((eventData.expireTimestamp - now) / 1000)}s`);
+            
+            if (now >= eventData.expireTimestamp) {
+                console.log(`[Auto-Delete] Zeit erreicht! Lösche Event "${eventData.title}"...`);
+                try {
+                    const channel = await client.channels.fetch(eventData.channelId).catch(() => null);
+                    if (channel) {
+                        const msg = await channel.messages.fetch(messageId).catch(() => null);
+                        if (msg) await msg.delete().catch(() => null);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Löschen der Event-Nachricht:', err);
                 }
-            } catch (err) {}
-            activeEvents.delete(messageId);
-            changed = true;
+                activeEvents.delete(messageId);
+                changed = true;
+            }
         }
     }
 
     if (changed) {
         await updateAllDashboards();
     }
-}, 30000);
+}, 10000); // Prüft jetzt testweise alle 10 Sekunden statt 30 Sekunden
 
 client.once('ready', async () => {
     console.log('[Shugo-Eventplaner v7.3] Bot ist eingeloggt!');
