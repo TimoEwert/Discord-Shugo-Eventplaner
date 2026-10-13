@@ -1,7 +1,7 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.5)
-// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit Europe/Berlin Zeitzonenfix & Debugging, 
-// Live-Dashboard mit Klassen-Emojis (X/5) und persistenter JSON-Speicherung.
+// Projekt: Shugo-Eventplaner (Version 7.6)
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit Europe/Berlin Zeitzonenfix, 
+// Live-Dashboard und titelbezogene Event-Banner (Bilder).
 // ==========================================
 
 const fs = require('fs');
@@ -79,23 +79,23 @@ function loadEventsFromDisk() {
 }
 
 const PREDEFINED_EVENT_TITLES = [
-    { label: 'Kraohöhle (Erkundung)', value: 'Kraohöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Kraohöhle (Eroberung)', value: 'Kraohöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Draupnir (Erkundung)', value: 'Draupnir Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Draupnir (Eroberung)', value: 'Draupnir Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Uruguguschlucht (Erkundung)', value: 'Uruguguschlucht Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Uruguguschlucht (Eroberung)', value: 'Uruguguschlucht Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Vakrons Luftinsel (Erkundung)', value: 'Vakrons Luftinsel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Vakrons Luftinsel (Eroberung)', value: 'Vakrons Luftinsel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Feuertempel (Erkundung)', value: 'Feuertempel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Feuertempel (Eroberung)', value: 'Feuertempel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Grimmhornhöhle (Erkundung)', value: 'Grimmhornhöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Grimmhornhöhle (Eroberung)', value: 'Grimmhornhöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Abyss Raid', value: 'Abyss Raid', description: 'Abyss Raid', emoji: '🔥' },
-    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨' },
-    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️' },
-    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾' },
-    { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️' }
+    { label: 'Kraohöhle (Erkundung)', value: 'Kraohöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: null },
+    { label: 'Kraohöhle (Eroberung)', value: 'Kraohöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Draupnir (Erkundung)', value: 'Draupnir Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: null },
+    { label: 'Draupnir (Eroberung)', value: 'Draupnir Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Uruguguschlucht (Erkundung)', value: 'Uruguguschlucht Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/uruguru.png' },
+    { label: 'Uruguguschlucht (Eroberung)', value: 'Uruguguschlucht Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Vakrons Luftinsel (Erkundung)', value: 'Vakrons Luftinsel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: null },
+    { label: 'Vakrons Luftinsel (Eroberung)', value: 'Vakrons Luftinsel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Feuertempel (Erkundung)', value: 'Feuertempel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: null },
+    { label: 'Feuertempel (Eroberung)', value: 'Feuertempel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Grimmhornhöhle (Erkundung)', value: 'Grimmhornhöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: null },
+    { label: 'Grimmhornhöhle (Eroberung)', value: 'Grimmhornhöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: null },
+    { label: 'Abyss Raid', value: 'Abyss Raid', description: 'Abyss Raid', emoji: '🔥', bgImage: null },
+    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨', bgImage: null },
+    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️', bgImage: null },
+    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾', bgImage: null },
+    { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️', bgImage: null }
 ];
 
 const commands = [
@@ -195,7 +195,7 @@ setInterval(async () => {
 
 client.once('ready', async () => {
     loadEventsFromDisk();
-    console.log('[Shugo-Eventplaner v7.5] Bot ist eingeloggt!');
+    console.log('[Shugo-Eventplaner v7.6] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -305,11 +305,15 @@ client.on('interactionCreate', async (interaction) => {
 
             if (selectedVal === 'CUSTOM_TITLE') {
                 session.step = 'INPUT_CUSTOM_TITLE';
+                session.bgImage = null;
                 await interaction.update({ content: '✏️ Du hast **Eigener Titel** gewählt.', components: [] });
                 await interaction.user.send({ content: 'Bitte schreibe jetzt deinen **gewünschten Event-Namen** in den Chat:' });
             } else {
-                session.title = selectedVal;
+                const selectedItem = PREDEFINED_EVENT_TITLES.find(item => item.value === selectedVal);
+                session.title = selectedItem.value;
+                session.bgImage = selectedItem.bgImage || null;
                 session.step = 'INPUT_TIME';
+                
                 await interaction.update({ content: `✅ Titel gewählt: **${session.title}**`, components: [] });
                 await interaction.user.send({ 
                     content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. 25.10.2026 20:00)*' 
@@ -350,14 +354,19 @@ client.on('interactionCreate', async (interaction) => {
             const updatedEmbed = new EmbedBuilder()
                 .setTitle(`📅 Event: ${eventData.title}`)
                 .setDescription(eventData.description)
-                .setColor(0x0099FF)
-                .addFields(
-                    { name: '🕒 Datum / Uhrzeit', value: eventData.time, inline: true },
-                    { name: '👑 Erstellt von', value: eventData.creator, inline: true },
-                    { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
-                )
-                .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
-                .setTimestamp();
+                .setColor(0x0099FF);
+
+            if (eventData.bgImage) {
+                updatedEmbed.setImage(eventData.bgImage);
+            }
+
+            updatedEmbed.addFields(
+                { name: '🕒 Datum / Uhrzeit', value: eventData.time, inline: true },
+                { name: '👑 Erstellt von', value: eventData.creator, inline: true },
+                { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
+            )
+            .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+            .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
             await updateAllDashboards();
@@ -384,14 +393,19 @@ client.on('interactionCreate', async (interaction) => {
                 const updatedEmbed = new EmbedBuilder()
                     .setTitle(`📅 Event: ${eventData.title}`)
                     .setDescription(eventData.description)
-                    .setColor(0x0099FF)
-                    .addFields(
-                        { name: '🕒 Datum / Uhrzeit', value: eventData.time, inline: true },
-                        { name: '👑 Erstellt von', value: eventData.creator, inline: true },
-                        { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
-                    )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
-                    .setTimestamp();
+                    .setColor(0x0099FF);
+
+                if (eventData.bgImage) {
+                    updatedEmbed.setImage(eventData.bgImage);
+                }
+
+                updatedEmbed.addFields(
+                    { name: '🕒 Datum / Uhrzeit', value: eventData.time, inline: true },
+                    { name: '👑 Erstellt von', value: eventData.creator, inline: true },
+                    { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
+                )
+                .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+                .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
                 await updateAllDashboards();
@@ -480,14 +494,19 @@ client.on('messageCreate', async (message) => {
             const eventEmbed = new EmbedBuilder()
                 .setTitle(`📅 Event: ${session.title}`)
                 .setDescription(eventDesc)
-                .setColor(0x0099FF)
-                .addFields(
-                    { name: '🕒 Datum / Uhrzeit', value: session.timeStr, inline: true },
-                    { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
-                    { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
-                )
-                .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
-                .setTimestamp();
+                .setColor(0x0099FF);
+
+            if (session.bgImage) {
+                eventEmbed.setImage(session.bgImage);
+            }
+
+            eventEmbed.addFields(
+                { name: '🕒 Datum / Uhrzeit', value: session.timeStr, inline: true },
+                { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
+                { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
+            )
+            .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+            .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
                 .setCustomId('select_class')
@@ -520,6 +539,7 @@ client.on('messageCreate', async (message) => {
                 title: session.title,
                 description: eventDesc,
                 time: session.timeStr,
+                bgImage: session.bgImage || null,
                 creator: `<@${userId}>`,
                 creatorId: userId,
                 channelId: session.channelId,
