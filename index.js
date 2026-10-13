@@ -1,7 +1,7 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.1)
-// Beschreibung: DM-Wizard mit Dropdown + Option für "Eigener Titel", Datum/Zeit per Chat, 
-// robustem Auto-Delete, Live-Dashboard & Admin-Steuerung.
+// Projekt: Shugo-Eventplaner (Version 7.2)
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Teilnehmer-Zähler (X/5) 
+// und Echtzeit-Aktualisierung bei An/Abmeldungen.
 // ==========================================
 
 const { 
@@ -29,7 +29,6 @@ const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
 const wizardSessions = new Map();   // userId -> Wizard State
 
-// Vordefinierte Event-Titel (plus Option für eigenen Titel)
 const PREDEFINED_EVENT_TITLES = [
     { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
     { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
@@ -48,7 +47,7 @@ const commands = [
         .setDescription('Postet oder aktualisiert das Live-Event-Dashboard in diesem Kanal.')
 ];
 
-// Live-Dashboard Aktualisierungsfunktion
+// Live-Dashboard Aktualisierungsfunktion (zeigt nun auch (X/5) Anmeldungen an)
 async function updateAllDashboards() {
     for (const [channelId, dashMsgId] of activeDashboards.entries()) {
         try {
@@ -68,7 +67,8 @@ async function updateAllDashboards() {
             } else {
                 let eventListText = '';
                 for (const [msgId, ev] of activeEvents.entries()) {
-                    eventListText += `• **${ev.title}** um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${ev.guildId}/${ev.channelId}/${msgId})\n`;
+                    const signupCount = ev.signups.size; // Aktuelle Anzahl Anmeldungen
+                    eventListText += `• **${ev.title}** (${signupCount}/5) um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${ev.guildId}/${ev.channelId}/${msgId})\n`;
                 }
                 dashboardEmbed.addFields({ name: 'Geplante Events', value: eventListText });
             }
@@ -87,7 +87,7 @@ async function updateAllDashboards() {
     }
 }
 
-// Hintergrund-Check für Auto-Delete nach Ablauf der Startzeit
+// Hintergrund-Check für Auto-Delete
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
@@ -100,9 +100,7 @@ setInterval(async () => {
                     const msg = await channel.messages.fetch(messageId).catch(() => null);
                     if (msg) await msg.delete().catch(() => null);
                 }
-            } catch (err) {
-                console.error('Fehler beim automatischen Löschen:', err);
-            }
+            } catch (err) {}
             activeEvents.delete(messageId);
             changed = true;
         }
@@ -114,7 +112,7 @@ setInterval(async () => {
 }, 30000);
 
 client.once('ready', async () => {
-    console.log('[Shugo-Eventplaner v7.1] Bot ist eingeloggt!');
+    console.log('[Shugo-Eventplaner v7.2] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -179,7 +177,8 @@ client.on('interactionCreate', async (interaction) => {
             } else {
                 let eventListText = '';
                 for (const [msgId, ev] of activeEvents.entries()) {
-                    eventListText += `• **${ev.title}** um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${interaction.guildId}/${ev.channelId}/${msgId})\n`;
+                    const signupCount = ev.signups.size;
+                    eventListText += `• **${ev.title}** (${signupCount}/5) um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${interaction.guildId}/${ev.channelId}/${msgId})\n`;
                 }
                 dashboardEmbed.addFields({ name: 'Geplante Events', value: eventListText });
             }
@@ -221,6 +220,7 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
+        // Klassenauswahl im Event-Kanal (Anmeldung)
         else if (interaction.customId === 'select_class') {
             const messageId = interaction.message.id;
             const eventData = activeEvents.get(messageId);
@@ -257,10 +257,13 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
+
+            // Dashboard in Echtzeit aktualisieren bei Anmeldung
+            await updateAllDashboards();
         }
     }
 
@@ -289,10 +292,13 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
+
+                // Dashboard in Echtzeit aktualisieren bei Abmeldung
+                await updateAllDashboards();
             } else {
                 await interaction.reply({ content: 'Du stehst auf keiner Anmeldeliste.', ephemeral: true });
             }
@@ -376,7 +382,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
@@ -418,6 +424,7 @@ client.on('messageCreate', async (message) => {
                 signups: new Map()
             });
 
+            // Dashboard direkt aktualisieren, damit das neue Event mit (0/5) auftaucht
             await updateAllDashboards();
 
             const deleteBtn = new ButtonBuilder()
