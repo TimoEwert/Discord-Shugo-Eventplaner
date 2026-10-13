@@ -1,7 +1,7 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 6.3)
-// Beschreibung: Vollständiger DM-Wizard mit Dropdowns für Titel, Tag, Monat, Jahr, Stunde & Minute,
-// Auto-Delete, Live-Dashboard & Admin-Steuerung.
+// Projekt: Shugo-Eventplaner (Version 7.0)
+// Beschreibung: Klarer DM-Wizard (Titel per Dropdown, Datum/Uhrzeit & Beschreibung per Chat),
+// Auto-Delete, Live-Dashboard & Admin-Steuerung in DMs.
 // ==========================================
 
 const { 
@@ -25,10 +25,11 @@ const client = new Client({
     ]
 });
 
-const activeEvents = new Map();
-const activeDashboards = new Map();
-const wizardSessions = new Map();
+const activeEvents = new Map();     // messageId -> EventData
+const activeDashboards = new Map(); // channelId -> dashboardMessageId
+const wizardSessions = new Map();   // userId -> Wizard State
 
+// Vordefinierte Event-Titel (im Code beliebig erweiterbar)
 const PREDEFINED_EVENT_TITLES = [
     { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
     { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
@@ -47,6 +48,7 @@ const commands = [
         .setDescription('Postet oder aktualisiert das Live-Event-Dashboard in diesem Kanal.')
 ];
 
+// Live-Dashboard Aktualisierungsfunktion
 async function updateAllDashboards() {
     for (const [channelId, dashMsgId] of activeDashboards.entries()) {
         try {
@@ -85,6 +87,7 @@ async function updateAllDashboards() {
     }
 }
 
+// Hintergrund-Check für Auto-Delete nach Ablauf der Startzeit
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
@@ -111,7 +114,7 @@ setInterval(async () => {
 }, 30000);
 
 client.once('ready', async () => {
-    console.log(`[Shugo-Eventplaner v6.3] Bot ist eingeloggt als ${client.user.tag}!`);
+    console.log(`[Shugo-Eventplaner v7.0] Bot ist eingeloggt als ${client.user.tag}!`);
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -152,7 +155,7 @@ client.on('interactionCreate', async (interaction) => {
 
                 const row = new ActionRowBuilder().addComponents(titleSelect);
                 await dmChannel.send({ 
-                    content: '📌 **Schritt 1/4:** Welches Event möchtest du planen?', 
+                    content: '📌 **Schritt 1/3:** Welches Event möchtest du planen?', 
                     components: [row] 
                 });
 
@@ -197,175 +200,23 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // Titel per Dropdown ausgewählt -> Frage nach Datum & Uhrzeit per Chat
     if (interaction.isStringSelectMenu()) {
         const userId = interaction.user.id;
         const session = wizardSessions.get(userId);
 
-        // --- SCHRITT 1: TITEL GEWÄHLT -> TAG WÄHLEN (1-15 und 16-31 aufteilen wegen 25er Limit) ---
         if (interaction.customId === 'wizard_title_select' && session) {
             session.title = interaction.values[0];
-            session.step = 'SELECT_DAY';
+            session.step = 'INPUT_TIME';
             
             await interaction.update({ content: `✅ Titel gewählt: **${session.title}**`, components: [] });
 
-            const daySelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_day_select')
-                .setPlaceholder('Wähle den Tag (01 - 15)...');
-
-            for (let i = 1; i <= 15; i++) {
-                const d = i < 10 ? `0${i}` : `${i}`;
-                daySelect.addOptions(new StringSelectMenuOptionBuilder().setLabel(d).setValue(d));
-            }
-
             await interaction.user.send({ 
-                content: '📅 **Schritt 2/4 (Datum - Tag Teil 1):** Wähle einen Tag von 01 bis 15 (Für Tage ab 16 gibt es gleich einen zweiten Schritt):', 
-                components: [new ActionRowBuilder().addComponents(daySelect)] 
+                content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte einfach im Chat schreiben, z.B. `25.10.2026 20:00`)*' 
             });
         }
 
-        // --- TAG TEIL 1 (1-15) GEWÄHLT ---
-        else if (interaction.customId === 'wizard_day_select' && session) {
-            session.day = interaction.values[0];
-            session.step = 'SELECT_MONTH';
-
-            await interaction.update({ content: `✅ Tag gewählt: **${session.day}**`, components: [] });
-
-            const months = [
-                { label: 'Januar', value: '01' }, { label: 'Februar', value: '02' },
-                { label: 'März', value: '03' }, { label: 'April', value: '04' },
-                { label: 'Mai', value: '05' }, { label: 'Juni', value: '06' },
-                { label: 'Juli', value: '07' }, { label: 'August', value: '08' },
-                { label: 'September', value: '09' }, { label: 'Oktober', value: '10' },
-                { label: 'November', value: '11' }, { label: 'Dezember', value: '12' }
-            ];
-
-            const monthSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_month_select')
-                .setPlaceholder('Wähle den Monat aus...')
-                .addOptions(months.map(m => new StringSelectMenuOptionBuilder().setLabel(m.label).setValue(m.value)));
-
-            await interaction.user.send({ 
-                content: '📅 **Schritt 2/4 (Monat):** Welcher Monat?', 
-                components: [new ActionRowBuilder().addComponents(monthSelect)] 
-            });
-        }
-
-        // --- MONAT GEWÄHLT -> JAHR ---
-        else if (interaction.customId === 'wizard_month_select' && session) {
-            session.month = interaction.values[0];
-            session.step = 'SELECT_YEAR';
-
-            await interaction.update({ content: `✅ Monat gewählt`, components: [] });
-
-            const yearSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_year_select')
-                .setPlaceholder('Wähle das Jahr aus...');
-
-            for (let y = 2026; y <= 2030; y++) {
-                yearSelect.addOptions(new StringSelectMenuOptionBuilder().setLabel(`${y}`).setValue(`${y}`));
-            }
-
-            await interaction.user.send({ 
-                content: '📅 **Schritt 2/4 (Jahr):** Welches Jahr?', 
-                components: [new ActionRowBuilder().addComponents(yearSelect)] 
-            });
-        }
-
-        // --- JAHR GEWÄHLT -> UHRZEIT: STUNDE (00-23) ---
-        else if (interaction.customId === 'wizard_year_select' && session) {
-            session.year = interaction.values[0];
-            session.step = 'SELECT_HOUR';
-
-            await interaction.update({ content: `✅ Jahr gewählt: **${session.year}**`, components: [] });
-
-            // Aufteilung in zwei Menüs (Stunden 00-11 und 12-23, um das 25er Limit einzuhalten)
-            const hourSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_hour_select')
-                .setPlaceholder('Wähle die Stunde (00 - 11)...');
-
-            for (let h = 0; h <= 11; h++) {
-                const hs = h < 10 ? `0${h}` : `${h}`;
-                hourSelect.addOptions(new StringSelectMenuOptionBuilder().setLabel(`${hs} Uhr`).setValue(hs));
-            }
-
-            // Alternativ Stunden 12-23 bieten wir als zweite Option oder teilen es sauber auf. 
-            // Machen wir es noch eleganter: Ein Menü für Vormittag/Nachmittag oder 00-11 / 12-23 per Button/Select.
-            // Am einfachsten: Zwei Optionen zur Auswahl, ob 00-11 oder 12-23 Uhr!
-            const timeRangeSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_timerange_select')
-                .setPlaceholder('Wähle den Stundenbereich...')
-                .addOptions(
-                    new StringSelectMenuOptionBuilder().setLabel('00:00 bis 11:59 Uhr').setValue('AM'),
-                    new StringSelectMenuOptionBuilder().setLabel('12:00 bis 23:59 Uhr').setValue('PM')
-                );
-
-            await interaction.user.send({ 
-                content: '🕒 **Schritt 3/4 (Uhrzeit - Bereich):** Handelt es sich um die erste oder zweite Tageshälfte?', 
-                components: [new ActionRowBuilder().addOptions ? new ActionRowBuilder().addComponents(timeRangeSelect) : new ActionRowBuilder().addComponents(timeRangeSelect)] 
-            });
-        }
-
-        // --- STUNDENBEREICH (AM/PM) GEWÄHLT -> GENAUE STUNDE ---
-        else if (interaction.customId === 'wizard_timerange_select' && session) {
-            session.timeRange = interaction.values[0]; // 'AM' oder 'PM'
-            session.step = 'SELECT_EXACT_HOUR';
-
-            await interaction.update({ content: `✅ Bereich gewählt`, components: [] });
-
-            const exactHourSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_exacthour_select')
-                .setPlaceholder('Wähle die genaue Stunde...');
-
-            const startH = session.timeRange === 'AM' ? 0 : 12;
-            const endH = session.timeRange === 'AM' ? 11 : 23;
-
-            for (let h = startH; h <= endH; h++) {
-                const hs = h < 10 ? `0${h}` : `${h}`;
-                exactHourSelect.addOptions(new StringSelectMenuOptionBuilder().setLabel(`${hs}:00 Uhr`).setValue(hs));
-            }
-
-            await interaction.user.send({ 
-                content: '🕒 **Schritt 3/4 (Uhrzeit - Stunde):** Welche Stunde?', 
-                components: [new ActionRowBuilder().addComponents(exactHourSelect)] 
-            });
-        }
-
-        // --- GENAUE STUNDE GEWÄHLT -> MINUTEN (00, 15, 30, 45) ---
-        else if (interaction.customId === 'wizard_exacthour_select' && session) {
-            session.hour = interaction.values[0];
-            session.step = 'SELECT_MINUTE';
-
-            await interaction.update({ content: `✅ Stunde gewählt: **${session.hour} Uhr**`, components: [] });
-
-            const minuteSelect = new StringSelectMenuBuilder()
-                .setCustomId('wizard_minute_select')
-                .setPlaceholder('Wähle die Minuten...')
-                .addOptions(
-                    new StringSelectMenuOptionBuilder().setLabel('00 Minuten').setValue('00'),
-                    new StringSelectMenuOptionBuilder().setLabel('15 Minuten').setValue('15'),
-                    new StringSelectMenuOptionBuilder().setLabel('30 Minuten').setValue('30'),
-                    new StringSelectMenuOptionBuilder().setLabel('45 Minuten').setValue('45')
-                );
-
-            await interaction.user.send({ 
-                content: '🕒 **Schritt 3/4 (Uhrzeit - Minuten):** Wähle die Minuten:', 
-                components: [new ActionRowBuilder().addComponents(minuteSelect)] 
-            });
-        }
-
-        // --- MINUTEN GEWÄHLT -> FERTIG MIT DATUM/ZEIT, FRAGE NACH BESCHREIBUNG ---
-        else if (interaction.customId === 'wizard_minute_select' && session) {
-            session.minute = interaction.values[0];
-            session.step = 'INPUT_DESC';
-
-            await interaction.update({ content: `✅ Uhrzeit komplett: **${session.hour}:${session.minute} Uhr**`, components: [] });
-
-            await interaction.user.send({ 
-                content: '📝 **Schritt 4/4 (Beschreibung):** Bitte schreibe jetzt noch eine kurze Beschreibung oder Taktik in den Chat:' 
-            });
-        }
-
-        // KLASSENAUSWAHL IM KANAL
+        // Klassenauswahl im Event-Kanal
         else if (interaction.customId === 'select_class') {
             const messageId = interaction.message.id;
             const eventData = activeEvents.get(messageId);
@@ -402,7 +253,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v6.3 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
@@ -434,7 +285,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v6.3 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
@@ -469,7 +320,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// DM-Textnachrichten Handler für die Beschreibung am Ende
+// DM-Textnachrichten Handler für Datum/Uhrzeit & Beschreibung
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.guild) return;
@@ -478,15 +329,27 @@ client.on('messageCreate', async (message) => {
     const session = wizardSessions.get(userId);
     if (!session) return;
 
-    if (session.step === 'INPUT_DESC') {
-        const eventDesc = message.content.trim();
-        const timeStrFormatted = `${session.hour}:${session.minute} Uhr`;
-        const fullTimeStr = `${session.day}.${session.month}.${session.year} um ${timeStrFormatted}`;
+    // --- DATUM & UHRZEIT EMPFANGEN ---
+    if (session.step === 'INPUT_TIME') {
+        session.timeStr = message.content.trim();
+        session.step = 'INPUT_DESC';
 
+        await message.reply('📝 **Schritt 3/3:** Bitte schreibe nun noch eine kurze **Beschreibung** oder Taktik in den Chat:');
+    }
+
+    // --- BESCHREIBUNG EMPFANGEN & EVENT ERSTELLEN ---
+    else if (session.step === 'INPUT_DESC') {
+        const eventDesc = message.content.trim();
+        
         let expireTimestamp = null;
         try {
-            expireTimestamp = new Date(`${session.year}-${session.month}-${session.day}T${session.hour}:${session.minute}:00`).getTime();
-        } catch (e) {}
+            const [datePart, timePart] = session.timeStr.split(' ');
+            const [day, month, year] = datePart.split('.');
+            const [hour, minute] = timePart.split(':');
+            expireTimestamp = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`).getTime();
+        } catch (e) {
+            console.log('Konnte Datum für Auto-Delete nicht parsen.');
+        }
 
         try {
             const targetChannel = await client.channels.fetch(session.channelId);
@@ -496,11 +359,11 @@ client.on('messageCreate', async (message) => {
                 .setDescription(eventDesc)
                 .setColor(0x0099FF)
                 .addFields(
-                    { name: '🕒 Datum / Uhrzeit', value: fullTimeStr, inline: true },
+                    { name: '🕒 Datum / Uhrzeit', value: session.timeStr, inline: true },
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v6.3 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
@@ -533,7 +396,7 @@ client.on('messageCreate', async (message) => {
             activeEvents.set(sentMessage.id, {
                 title: session.title,
                 description: eventDesc,
-                time: fullTimeStr,
+                time: session.timeStr,
                 creator: `<@${userId}>`,
                 creatorId: userId,
                 channelId: session.channelId,
@@ -557,13 +420,13 @@ client.on('messageCreate', async (message) => {
             const adminRow = new ActionRowBuilder().addComponents(deleteBtn, refreshBtn);
 
             await message.reply({ 
-                content: `✅ Dein Event **"${session.title}"** wurde erfolgreich im Kanal veröffentlicht!`, 
+                content: `✅ Dein Event **"${session.title}"** wurde erfolgreich im Kanal veröffentlicht!\nDu kannst es hier verwalten:`, 
                 components: [adminRow] 
             });
 
         } catch (err) {
             console.error('Fehler bei der Event-Finalisierung:', err);
-            await message.reply('❌ Ein Fehler ist aufgetreten.');
+            await message.reply('❌ Ein Fehler ist aufgetreten. Konnte das Event nicht im Kanal posten.');
         }
 
         wizardSessions.delete(userId);
