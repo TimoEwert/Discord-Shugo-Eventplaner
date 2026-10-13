@@ -1,6 +1,6 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.4)
-// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit lokalem Parser & Debugging, 
+// Projekt: Shugo-Eventplaner (Version 7.5)
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit Europe/Berlin Zeitzonenfix & Debugging, 
 // Live-Dashboard mit Klassen-Emojis (X/5) und persistenter JSON-Speicherung.
 // ==========================================
 
@@ -184,7 +184,7 @@ setInterval(async () => {
 
 client.once('ready', async () => {
     loadEventsFromDisk();
-    console.log('[Shugo-Eventplaner v7.4] Bot ist eingeloggt!');
+    console.log('[Shugo-Eventplaner v7.5] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -345,7 +345,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
@@ -379,7 +379,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
@@ -450,11 +450,15 @@ client.on('messageCreate', async (message) => {
             const [day, month, year] = datePart.split('.');
             const [hour, minute] = timePart.split(':');
 
-            // Lokaler Parser (verhindert UTC/Zeitzonen-Verschiebung)
-            const targetDate = new Date(year, month - 1, day, hour, minute, 0);
-            expireTimestamp = targetDate.getTime();
+            // Zeitzonensicherer Parser für Deutschland (Europe/Berlin)
+            const checkDstDate = new Date(year, month - 1, day);
+            const isDST = new Date(year, 5, 1).getTimezoneOffset() === checkDstDate.getTimezoneOffset();
+            const offsetHours = isDST ? '+02:00' : '+01:00';
+
+            const isoWithOffset = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00${offsetHours}`;
+            expireTimestamp = new Date(isoWithOffset).getTime();
             
-            console.log(`[Auto-Delete Parser] Event "${session.title}" geparst. Ziel-Timestamp: ${expireTimestamp} (${targetDate.toLocaleString()})`);
+            console.log(`[Auto-Delete Parser] Event "${session.title}" für deutsche Zeit geparst. Ziel-Timestamp: ${expireTimestamp}`);
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
@@ -471,7 +475,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.5 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
