@@ -338,19 +338,23 @@ client.on('messageCreate', async (message) => {
     }
 
     // --- BESCHREIBUNG EMPFANGEN & EVENT ERSTELLEN ---
-    else if (session.step === 'INPUT_DESC') {
-        const eventDesc = message.content.trim();
-        
-        let expireTimestamp = null;
+   let expireTimestamp = null;
         try {
-            const [datePart, timePart] = session.timeStr.split(' ');
+            const parts = session.timeStr.trim().split(/\s+/);
+            const datePart = parts[0]; // z.B. 25.10.2026
+            const timePart = parts[1]; // z.B. 20:00
+
             const [day, month, year] = datePart.split('.');
             const [hour, minute] = timePart.split(':');
-            expireTimestamp = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`).getTime();
-        } catch (e) {
-            console.log('Konnte Datum für Auto-Delete nicht parsen.');
-        }
 
+            // Erstellt ein valides ISO-Datum (YYYY-MM-DDTHH:MM:00)
+            const isoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
+            expireTimestamp = new Date(isoString).getTime();
+            
+            console.log(`[Auto-Delete] Event "${session.title}" programmiert für Löschung um: ${new Date(expireTimestamp).toLocaleString()}`);
+        } catch (e) {
+            console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
+        }
         try {
             const targetChannel = await client.channels.fetch(session.channelId);
             
