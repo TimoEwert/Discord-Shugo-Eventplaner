@@ -152,13 +152,15 @@ async function updateAllDashboards() {
     }
 }
 
-// Hintergrund-Check für Auto-Delete (mit Debugging & JSON-Update)
+// Hintergrund-Check für Auto-Delete mit vollem Debugging & JSON-Update
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
 
     for (const [messageId, eventData] of activeEvents.entries()) {
         if (eventData.expireTimestamp) {
+            console.log(`[Auto-Check] Event "${eventData.title}": Jetzt=${now} | Ziel=${eventData.expireTimestamp} | Differenz=${Math.round((eventData.expireTimestamp - now) / 1000)}s`);
+            
             if (now >= eventData.expireTimestamp) {
                 console.log(`[Auto-Delete] Zeit erreicht! Lösche Event "${eventData.title}"...`);
                 try {
