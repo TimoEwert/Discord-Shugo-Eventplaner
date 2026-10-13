@@ -1,9 +1,11 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.3)
-// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Klassen-Emojis (z.B. 🔥 2x, 🛡️ 1x = 3/5)
-// und Echtzeit-Aktualisierung bei An/Abmeldungen.
+// Projekt: Shugo-Eventplaner (Version 7.4)
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Klassen-Emojis (X/5)
+// und persistenter JSON-Speicherung (neustartsicher).
 // ==========================================
 
+const fs = require('fs');
+const path = require('path');
 const { 
     Client, 
     GatewayIntentBits, 
@@ -25,27 +27,65 @@ const client = new Client({
     ]
 });
 
+const DATA_FILE = path.join(__dirname, 'events.json');
+
+// Maps für Events, Dashboards und Sessions
 const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
 const wizardSessions = new Map();   // userId -> Wizard State
 
+// Hilfsfunktionen zum Laden und Speichern der JSON-Datei
+function saveEventsToDisk() {
+    try {
+        // Da Map nicht direkt mit JSON.stringify kompatibel ist, konvertieren wir sie in ein Array/Objekt
+        const plainData = {};
+        for (const [msgId, ev] of activeEvents.entries()) {
+            const signupsObj = {};
+            for (const [userId, signupData] of ev.signups.entries()) {
+                signupsObj[userId] = signupData;
+            }
+            plainData[msgId] = {
+                ...ev,
+                signups: signupsObj
+            };
+        }
+        fs.writeFileSync(DATA_FILE, JSON.stringify(plainData, null, 2), 'utf8');
+    } catch (err) {
+        console.error('Fehler beim Speichern der events.json:', err);
+    }
+}
+
+function loadEventsFromDisk() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const rawData = fs.readFileSync(DATA_FILE, 'utf8');
+            const plainData = JSON.parse(rawData);
+            
+            for (const [msgId, ev] of Object.entries(plainData)) {
+                const signupsMap = new Map();
+                if (ev.signups) {
+                    for (const [userId, signupData] of Object.entries(ev.signups)) {
+                        signupsMap.set(userId, signupData);
+                    }
+                }
+                activeEvents.set(msgId, {
+                    ...ev,
+                    signups: signupsMap
+                });
+            }
+            console.log(`[Storage] ${activeEvents.size} Events aus events.json geladen.`);
+        }
+    } catch (err) {
+        console.error('Fehler beim Laden der events.json:', err);
+    }
+}
+
 const PREDEFINED_EVENT_TITLES = [
-    { label: 'Kraohöhle (Erkundung)', value: 'Kraohöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Kraohöhle (Eroberung)', value: 'Kraohöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Draupnir (Erkundung)', value: 'Draupnir Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Draupnir (Eroberung)', value: 'Draupnir Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Uruguguschlucht (Erkundung)', value: 'Uruguguschlucht Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Uruguguschlucht (Eroberung)', value: 'Uruguguschlucht Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Vakrons Luftinsel (Erkundung)', value: 'Vakrons Luftinsel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Vakrons Luftinsel (Eroberung)', value: 'Vakrons Luftinsel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Feuertempel (Erkundung)', value: 'Feuertempel Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Feuertempel (Eroberung)', value: 'Feuertempel Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Grimmhornhöhle (Erkundung)', value: 'Grimmhornhöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️' },
-    { label: 'Grimmhornhöhle (Eroberung)', value: 'Grimmhornhöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️' },
-    { label: 'Abyss Raid', value: 'Abyss Raid', description: 'Abyss Raid', emoji: '🔥' },
-    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨' },
-    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️' },
-    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾' },
+    { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
+    { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
+    { label: 'Dark Poeta', value: 'Dark Poeta (S-Rank)', description: 'PvE Instanz Farmen', emoji: '👻' },
+    { label: 'Event 1', value: 'Event 1 (Custom)', description: 'Benutzerdefiniertes Event 1', emoji: '📌' },
+    { label: 'Event 2', value: 'Event 2 (Custom)', description: 'Benutzerdefiniertes Event 2', emoji: '📌' },
     { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️' }
 ];
 
@@ -58,7 +98,7 @@ const commands = [
         .setDescription('Postet oder aktualisiert das Live-Event-Dashboard in diesem Kanal.')
 ];
 
-// Live-Dashboard Aktualisierungsfunktion (Block 1 aktualisiert)
+// Live-Dashboard Aktualisierungsfunktion
 async function updateAllDashboards() {
     for (const [channelId, dashMsgId] of activeDashboards.entries()) {
         try {
@@ -112,15 +152,13 @@ async function updateAllDashboards() {
     }
 }
 
-// Hintergrund-Check für Auto-Delete mit Debugging
+// Hintergrund-Check für Auto-Delete (mit Debugging & JSON-Update)
 setInterval(async () => {
     const now = Date.now();
     let changed = false;
 
     for (const [messageId, eventData] of activeEvents.entries()) {
         if (eventData.expireTimestamp) {
-            console.log(`[Auto-Check] Event "${eventData.title}": Jetzt=${now} | Ziel=${eventData.expireTimestamp} | Differenz=${Math.round((eventData.expireTimestamp - now) / 1000)}s`);
-            
             if (now >= eventData.expireTimestamp) {
                 console.log(`[Auto-Delete] Zeit erreicht! Lösche Event "${eventData.title}"...`);
                 try {
@@ -139,12 +177,14 @@ setInterval(async () => {
     }
 
     if (changed) {
+        saveEventsToDisk();
         await updateAllDashboards();
     }
-}, 10000); // Prüft jetzt testweise alle 10 Sekunden statt 30 Sekunden
+}, 10000);
 
 client.once('ready', async () => {
-    console.log('[Shugo-Eventplaner v7.3] Bot ist eingeloggt!');
+    loadEventsFromDisk(); // Events beim Start laden
+    console.log('[Shugo-Eventplaner v7.4] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -288,6 +328,8 @@ client.on('interactionCreate', async (interaction) => {
                 emoji: emoji
             });
 
+            saveEventsToDisk(); // Direkt in JSON speichern
+
             let signupText = '';
             for (const data of eventData.signups.values()) {
                 signupText += `${data.emoji} **${data.className}**: ${data.tag}\n`;
@@ -303,12 +345,10 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
-
-            // Dashboard in Echtzeit aktualisieren bei Anmeldung
             await updateAllDashboards();
         }
     }
@@ -322,6 +362,7 @@ client.on('interactionCreate', async (interaction) => {
 
             if (eventData.signups.has(interaction.user.id)) {
                 eventData.signups.delete(interaction.user.id);
+                saveEventsToDisk(); // Direkt in JSON speichern
 
                 let signupText = '';
                 for (const data of eventData.signups.values()) {
@@ -338,12 +379,10 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
-
-                // Dashboard in Echtzeit aktualisieren bei Abmeldung
                 await updateAllDashboards();
             } else {
                 await interaction.reply({ content: 'Du stehst auf keiner Anmeldeliste.', ephemeral: true });
@@ -365,6 +404,7 @@ client.on('interactionCreate', async (interaction) => {
             } catch (err) {}
 
             activeEvents.delete(targetMsgId);
+            saveEventsToDisk(); // Direkt in JSON speichern
             await updateAllDashboards();
             await interaction.update({ content: '🗑️ Event wurde erfolgreich gelöscht.', components: [] });
         }
@@ -428,7 +468,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.4 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
@@ -470,6 +510,7 @@ client.on('messageCreate', async (message) => {
                 signups: new Map()
             });
 
+            saveEventsToDisk(); // Sofort in JSON speichern
             await updateAllDashboards();
 
             const deleteBtn = new ButtonBuilder()
