@@ -1,6 +1,6 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 3.0)
-// Beschreibung: Mit vordefinierten Event-Titeln, Dashboard, Auto-Delete & strukturiertem Ablauf
+// Projekt: Shugo-Eventplaner (Version 4.0)
+// Beschreibung: Mit Modal für Datum/Zeit, Live-Dashboard, Auto-Delete & Admin-Löschbutton
 // ==========================================
 
 const { 
@@ -12,7 +12,10 @@ const {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
     ButtonBuilder, 
-    ButtonStyle 
+    ButtonStyle,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
 } = require('discord.js');
 
 const client = new Client({
@@ -25,9 +28,10 @@ const client = new Client({
 });
 
 // Zentraler Speicher für Events
-const activeEvents = new Map();
+const activeEvents = new Map(); // messageId -> EventData
+// Speichert Dashboard-Nachrichten pro Kanal: channelId -> dashboardMessageId
+const activeDashboards = new Map();
 
-// Vordefinierte Event-Titel (hier kannst du sie jederzeit anpassen/erweitern)
 const PREDEFINED_EVENT_TITLES = [
     { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
     { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
@@ -46,9 +50,43 @@ const commands = [
         .setDescription('Postet oder aktualisiert das Live-Event-Dashboard in diesem Kanal.')
 ];
 
-// Hintergrund-Check im Minutentakt für abgelaufene Events (Auto-Delete)
+// Hilfsfunktion: Dashboard in allen aktiven Kanälen live aktualisieren
+async function updateAllDashboards() {
+    for (const [channelId, dashMsgId] of activeDashboards.entries()) {
+        try {
+            const channel = await client.channels.fetch(channelId).catch(() => null);
+            if (!channel) continue;
+            const dashMsg = await channel.messages.fetch(dashMsgId).catch(() => null);
+            if (!dashMsg) continue;
+
+            const dashboardEmbed = new EmbedBuilder()
+                .setTitle('📋 Shugo-Eventplaner Dashboard (Live)')
+                .setDescription('Übersicht aller aktuell aktiven Events auf dem Server.')
+                .setColor(0xFFD700)
+                .setTimestamp();
+
+            if (activeEvents.size === 0) {
+                dashboardEmbed.addFields({ name: 'Aktive Events', value: '*Derzeit sind keine Events geplant.*' });
+            } else {
+                let eventListText = '';
+                for (const [msgId, ev] of activeEvents.entries()) {
+                    eventListText += `• **${ev.title}** um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${ev.guildId}/${ev.channelId}/${msgId})\n`;
+                }
+                dashboardEmbed.addFields({ name: 'Geplante Events', value: eventListText });
+            }
+
+            await dashMsg.edit({ embeds: [dashboardEmbed] });
+        } catch (err) {
+            console.error('Fehler beim Aktualisieren des Dashboards:', err);
+        }
+    }
+}
+
+// Hintergrund-Check für Auto-Delete nach Ablauf der Startzeit
 setInterval(async () => {
     const now = Date.now();
+    let changed = false;
+
     for (const [messageId, eventData] of activeEvents.entries()) {
         if (eventData.expireTimestamp && now >= eventData.expireTimestamp) {
             try {
@@ -61,13 +99,18 @@ setInterval(async () => {
                 console.error('Fehler beim automatischen Löschen des Events:', err);
             }
             activeEvents.delete(messageId);
+            changed = true;
             console.log(`[Auto-Delete] Event "${eventData.title}" wurde nach Ablauf entfernt.`);
         }
     }
-}, 60000);
+
+    if (changed) {
+        await updateAllDashboards();
+    }
+}, 30000); // Prüft alle 30 Sekunden
 
 client.once('ready', async () => {
-    console.log(`[Shugo-Eventplaner v3.0] Bot ist eingeloggt als ${client.user.tag}!`);
+    console.log(`[Shugo-Eventplaner v4.0] Bot ist eingeloggt als ${client.user.tag}!`);
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -89,7 +132,7 @@ client.on('interactionCreate', async (interaction) => {
                     ephemeral: true 
                 });
 
-                // Titel-Auswahl über Dropdown in der DM
+                // Schritt 1: Titel per Dropdown in DM
                 const titleSelect = new StringSelectMenuBuilder()
                     .setCustomId('wizard_select_title')
                     .setPlaceholder('Wähle das Event aus...')
@@ -116,14 +159,70 @@ client.on('interactionCreate', async (interaction) => {
                 const eventTitle = titleInteraction.values[0];
                 await titleInteraction.update({ content: `✅ Event-Titel gewählt: **${eventTitle}**`, components: [] });
 
-                // Datum & Uhrzeit Abfrage
-                const filterMsg = m => m.author.id === interaction.user.id;
-                await dmChannel.send('🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Format **TT.MM.JJJJ HH:MM** eingeben, z.B. `25.10.2026 20:00`)*');
-                
-                const collectedTime = await dmChannel.awaitMessages({ filter: filterMsg, max: 1, time: 60000 });
-                if (!collectedTime.size) return dmChannel.send('⏳ Zeitüberschreitung. abgebrochen.');
-                const eventTimeStr = collectedTime.first().content;
+                // Schritt 2: Datum & Uhrzeit über ein Discord Modal (Formular) abfragen
+                const modalId = `event_modal_${interaction.user.id}_${Date.now()}`;
+                const modal = new ModalBuilder()
+                    .setCustomId(modalId)
+                    .setTitle('Event-Details & Zeitpunkt');
 
+                const timeInput = new TextInputBuilder()
+                    .setCustomId('time_input')
+                    .setLabel('Datum & Uhrzeit (TT.MM.JJJJ HH:MM)')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('z.B. 25.10.2026 20:00')
+                    .setRequired(true);
+
+                const descInput = new TextInputBuilder()
+                    .setCustomId('desc_input')
+                    .setLabel('Beschreibung / Taktik-Hinweise')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setPlaceholder('Kurze Infos zum Ablauf...')
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(timeInput),
+                    new ActionRowBuilder().addComponents(descInput)
+                );
+
+                // Da man Modals nur auf Slash Commands direkt legen kann, schicken wir hierzu eine Aufforderung oder nutzen einen Button
+                await dmChannel.send('🕒 **Schritt 2 & 3:** Klicke auf den Button unten, um Datum, Uhrzeit und Beschreibung im Formular einzutragen.');
+                
+                const modalButton = new ButtonBuilder()
+                    .setCustomId(`open_modal_${modalId}`)
+                    .setLabel('Formular öffnen')
+                    .setStyle(ButtonStyle.Primary);
+
+                const btnRow = new ActionRowBuilder().addComponents(modalButton);
+                const modalPromptMsg = await dmChannel.send({ components: [btnRow] });
+
+                // Warten bis der User den Button klickt
+                const btnInteraction = await dmChannel.awaitMessageComponent({ 
+                    filter: i => i.user.id === interaction.user.id && i.customId === `open_modal_${modalId}`, 
+                    time: 60000 
+                }).catch(() => null);
+
+                if (!btnInteraction) {
+                    return dmChannel.send('⏳ Zeitüberschreitung. abgebrochen.');
+                }
+
+                await btnInteraction.showModal(modal);
+
+                // Auf das Absenden des Modals warten
+                const modalSubmission = await btnInteraction.awaitModalSubmit({ 
+                    filter: i => i.user.id === interaction.user.id && i.customId === modalId, 
+                    time: 120000 
+                }).catch(() => null);
+
+                if (!modalSubmission) {
+                    return dmChannel.send('⏳ Zeitüberschreitung beim Formular.');
+                }
+
+                const eventTimeStr = modalSubmission.fields.getTextInputValue('time_input');
+                const eventDesc = modalSubmission.fields.getTextInputValue('desc_input');
+
+                await modalSubmission.reply({ content: '✅ **Daten erhalten!** Das Event wird veröffentlicht.', ephemeral: true });
+
+                // Timestamp für automatisches Löschen berechnen
                 let expireTimestamp = null;
                 try {
                     const [datePart, timePart] = eventTimeStr.split(' ');
@@ -134,14 +233,6 @@ client.on('interactionCreate', async (interaction) => {
                     console.log('Konnte Datum nicht für Auto-Delete parsen.');
                 }
 
-                // Beschreibung
-                await dmChannel.send('📝 **Schritt 3/3:** Bitte gib eine kurze **Beschreibung** oder Taktik-Hinweise ein:');
-                const collectedDesc = await dmChannel.awaitMessages({ filter: filterMsg, max: 1, time: 120000 });
-                if (!collectedDesc.size) return dmChannel.send('⏳ Zeitüberschreitung. abgebrochen.');
-                const eventDesc = collectedDesc.first().content;
-
-                await dmChannel.send('✅ **Fertig!** Das Event wird im Kanal veröffentlicht.');
-
                 const eventEmbed = new EmbedBuilder()
                     .setTitle(`📅 Event: ${eventTitle}`)
                     .setDescription(eventDesc)
@@ -151,7 +242,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: `<@${interaction.user.id}>`, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v3.0 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v4.0 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 const classSelectMenu = new StringSelectMenuBuilder()
@@ -181,14 +272,31 @@ client.on('interactionCreate', async (interaction) => {
                     components: [rowMenu, rowButton] 
                 });
 
+                // In Map speichern
                 activeEvents.set(sentMessage.id, {
                     title: eventTitle,
                     description: eventDesc,
                     time: eventTimeStr,
                     creator: `<@${interaction.user.id}>`,
+                    creatorId: interaction.user.id,
                     channelId: targetChannel.id,
+                    guildId: targetChannel.guildId,
                     expireTimestamp: expireTimestamp,
                     signups: new Map()
+                });
+
+                // Live Dashboards aktualisieren
+                await updateAllDashboards();
+
+                // Dem Ersteller in der DM einen Lösch-Button für sein Event bereitstellen
+                const deleteButton = new ButtonBuilder()
+                    .setCustomId(`creator_delete_${sentMessage.id}`)
+                    .setLabel('🗑️ Event jetzt löschen')
+                    .setStyle(ButtonStyle.Danger);
+
+                await dmChannel.send({ 
+                    content: `Dein Event **"${eventTitle}"** wurde erfolgreich im Kanal erstellt. Du kannst es hier jederzeit vorzeitig löschen:`, 
+                    components: [new ActionRowBuilder().addComponents(deleteButton)] 
                 });
 
             } catch (error) {
@@ -200,7 +308,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply({ ephemeral: true });
 
             const dashboardEmbed = new EmbedBuilder()
-                .setTitle('📋 Shugo-Eventplaner Dashboard')
+                .setTitle('📋 Shugo-Eventplaner Dashboard (Live)')
                 .setDescription('Übersicht aller aktuell aktiven Events auf dem Server.')
                 .setColor(0xFFD700)
                 .setTimestamp();
@@ -218,10 +326,14 @@ client.on('interactionCreate', async (interaction) => {
             const dashMessage = await interaction.channel.send({ embeds: [dashboardEmbed] });
             await dashMessage.pin().catch(() => {});
 
-            await interaction.editReply({ content: '✅ Dashboard wurde erfolgreich in diesem Kanal erstellt und angepinnt!' });
+            // Kanal für automatische Live-Updates merken
+            activeDashboards.set(interaction.channelId, dashMessage.id);
+
+            await interaction.editReply({ content: '✅ Live-Dashboard wurde erfolgreich erstellt und angepinnt!' });
         }
     }
 
+    // Klassenauswahl im Event-Kanal
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_class') {
         const messageId = interaction.message.id;
         const eventData = activeEvents.get(messageId);
@@ -258,12 +370,13 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                 { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
             )
-            .setFooter({ text: 'Shugo-Eventplaner v3.0 - Wähle deine Klasse unten aus.' })
+            .setFooter({ text: 'Shugo-Eventplaner v4.0 - Wähle deine Klasse unten aus.' })
             .setTimestamp();
 
         await interaction.update({ embeds: [updatedEmbed] });
     }
 
+    // Absagen / Austragen Button im Event-Kanal
     if (interaction.isButton() && interaction.customId === 'event_decline') {
         const messageId = interaction.message.id;
         const eventData = activeEvents.get(messageId);
@@ -290,13 +403,42 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v3.0 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v4.0 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
         } else {
             await interaction.reply({ content: 'Du stehst derzeit auf keiner Anmeldeliste für dieses Event.', ephemeral: true });
         }
+    }
+
+    // Manueller Lösch-Button für den Ersteller in den DMs
+    if (interaction.isButton() && interaction.customId.startsWith('creator_delete_')) {
+        const targetMsgId = interaction.customId.replace('creator_delete_', '');
+        const eventData = activeEvents.get(targetMsgId);
+
+        if (!eventData) {
+            return interaction.reply({ content: '❌ Dieses Event existiert nicht mehr oder wurde bereits gelöscht.', ephemeral: true });
+        }
+
+        if (eventData.creatorId !== interaction.user.id) {
+            return interaction.reply({ content: '❌ Du bist nicht der Ersteller dieses Events.', ephemeral: true });
+        }
+
+        try {
+            const channel = await client.channels.fetch(eventData.channelId).catch(() => null);
+            if (channel) {
+                const msg = await channel.messages.fetch(targetMsgId).catch(() => null);
+                if (msg) await msg.delete().catch(() => null);
+            }
+        } catch (err) {
+            console.error('Fehler beim manuellen Löschen:', err);
+        }
+
+        activeEvents.delete(targetMsgId);
+        await updateAllDashboards();
+
+        await interaction.update({ content: '🗑️ Das Event wurde erfolgreich gelöscht und aus dem Dashboard entfernt.', components: [] });
     }
 });
 
