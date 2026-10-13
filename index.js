@@ -2,6 +2,7 @@
 // Projekt: Shugo-Eventplaner (Version 7.6)
 // Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit Europe/Berlin Zeitzonenfix, 
 // Live-Dashboard und titelbezogene Event-Banner (Bilder).
+// Code by Cyrill
 // ==========================================
 
 const fs = require('fs');
