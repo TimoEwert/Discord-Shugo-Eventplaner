@@ -114,7 +114,7 @@ setInterval(async () => {
 }, 30000);
 
 client.once('ready', async () => {
-    console.log(`[Shugo-Eventplaner v7.1] Bot ist eingeloggt als ${client.user.tag}!`);
+    console.log('[Shugo-Eventplaner v7.1] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -200,7 +200,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // Titel per Dropdown ausgewählt
     if (interaction.isStringSelectMenu()) {
         const userId = interaction.user.id;
         const session = wizardSessions.get(userId);
@@ -209,22 +208,19 @@ client.on('interactionCreate', async (interaction) => {
             const selectedVal = interaction.values[0];
 
             if (selectedVal === 'CUSTOM_TITLE') {
-                // Wenn "Eigener Titel" gewählt wurde, fragen wir im Chat nach dem Namen
                 session.step = 'INPUT_CUSTOM_TITLE';
                 await interaction.update({ content: '✏️ Du hast **Eigener Titel** gewählt.', components: [] });
                 await interaction.user.send({ content: 'Bitte schreibe jetzt deinen **gewünschten Event-Namen** in den Chat:' });
             } else {
-                // Regulärer vordefinierter Titel
                 session.title = selectedVal;
                 session.step = 'INPUT_TIME';
                 await interaction.update({ content: `✅ Titel gewählt: **${session.title}**`, components: [] });
                 await interaction.user.send({ 
-                    content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. `25.10.2026 20:00`)*' 
+                    content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. 25.10.2026 20:00)*' 
                 });
             }
         }
 
-        // Klassenauswahl im Event-Kanal
         else if (interaction.customId === 'select_class') {
             const messageId = interaction.message.id;
             const eventData = activeEvents.get(messageId);
@@ -328,7 +324,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// DM-Textnachrichten Handler für Eigenen Titel, Datum/Uhrzeit & Beschreibung
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.guild) return;
@@ -337,23 +332,20 @@ client.on('messageCreate', async (message) => {
     const session = wizardSessions.get(userId);
     if (!session) return;
 
-    // --- 1. EIGENEN TITEL EMPFANGEN ---
     if (session.step === 'INPUT_CUSTOM_TITLE') {
         session.title = message.content.trim();
         session.step = 'INPUT_TIME';
 
-        await message.reply(`✅ Eigener Titel gespeichert: **${session.title}**\n\n🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. `25.10.2026 20:00`)*`);
+        await message.reply('✅ Eigener Titel gespeichert!\n\n🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. 25.10.2026 20:00)*');
     }
 
-    // --- 2. DATUM & UHRZEIT EMPFANGEN ---
     else if (session.step === 'INPUT_TIME') {
         session.timeStr = message.content.trim();
         session.step = 'INPUT_DESC';
 
-        await message.reply('📝 **Schritt 3/3:** Bitte schreibe nun noch eine kurze **Beschreibung** oder Taktik in den Chat:');
+        await message.reply('📝 **Schritt 3/3:** Bitte schreibe nun noch eine kurze Beschreibung oder Taktik in den Chat:');
     }
 
-    // --- 3. BESCHREIBUNG EMPFANGEN & EVENT ERSTELLEN (mit robustem Auto-Delete Parser) ---
     else if (session.step === 'INPUT_DESC') {
         const eventDesc = message.content.trim();
         
@@ -368,8 +360,6 @@ client.on('messageCreate', async (message) => {
 
             const isoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
             expireTimestamp = new Date(isoString).getTime();
-            
-            console.log(`[Auto-Delete] Event "${session.title}" programmiert für Löschung um: ${new Date(expireTimestamp).toLocaleString()}`);
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
