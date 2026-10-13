@@ -1,6 +1,6 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.2)
-// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Teilnehmer-Zähler (X/5) 
+// Projekt: Shugo-Eventplaner (Version 7.3)
+// Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete, Live-Dashboard mit Klassen-Emojis (z.B. 🔥 2x, 🛡️ 1x = 3/5)
 // und Echtzeit-Aktualisierung bei An/Abmeldungen.
 // ==========================================
 
@@ -47,7 +47,7 @@ const commands = [
         .setDescription('Postet oder aktualisiert das Live-Event-Dashboard in diesem Kanal.')
 ];
 
-// Live-Dashboard Aktualisierungsfunktion (zeigt nun auch (X/5) Anmeldungen an)
+// Live-Dashboard Aktualisierungsfunktion (Block 1 aktualisiert)
 async function updateAllDashboards() {
     for (const [channelId, dashMsgId] of activeDashboards.entries()) {
         try {
@@ -67,8 +67,22 @@ async function updateAllDashboards() {
             } else {
                 let eventListText = '';
                 for (const [msgId, ev] of activeEvents.entries()) {
-                    const signupCount = ev.signups.size; // Aktuelle Anzahl Anmeldungen
-                    eventListText += `• **${ev.title}** (${signupCount}/5) um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${ev.guildId}/${ev.channelId}/${msgId})\n`;
+                    const signupCount = ev.signups.size;
+                    
+                    const classCounts = {};
+                    for (const data of ev.signups.values()) {
+                        classCounts[data.emoji] = (classCounts[data.emoji] || 0) + 1;
+                    }
+
+                    const emojiList = Object.entries(classCounts)
+                        .map(([emoji, count]) => `${emoji} ${count}x`)
+                        .join(' ');
+
+                    const signupStatus = emojiList.length > 0 
+                        ? `${emojiList} (${signupCount}/5)` 
+                        : `(${signupCount}/5)`;
+
+                    eventListText += `• **${ev.title}** ${signupStatus} um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${ev.guildId}/${ev.channelId}/${msgId})\n`;
                 }
                 dashboardEmbed.addFields({ name: 'Geplante Events', value: eventListText });
             }
@@ -112,7 +126,7 @@ setInterval(async () => {
 }, 30000);
 
 client.once('ready', async () => {
-    console.log('[Shugo-Eventplaner v7.2] Bot ist eingeloggt!');
+    console.log('[Shugo-Eventplaner v7.3] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -178,7 +192,21 @@ client.on('interactionCreate', async (interaction) => {
                 let eventListText = '';
                 for (const [msgId, ev] of activeEvents.entries()) {
                     const signupCount = ev.signups.size;
-                    eventListText += `• **${ev.title}** (${signupCount}/5) um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${interaction.guildId}/${ev.channelId}/${msgId})\n`;
+                    
+                    const classCounts = {};
+                    for (const data of ev.signups.values()) {
+                        classCounts[data.emoji] = (classCounts[data.emoji] || 0) + 1;
+                    }
+
+                    const emojiList = Object.entries(classCounts)
+                        .map(([emoji, count]) => `${emoji} ${count}x`)
+                        .join(' ');
+
+                    const signupStatus = emojiList.length > 0 
+                        ? `${emojiList} (${signupCount}/5)` 
+                        : `(${signupCount}/5)`;
+
+                    eventListText += `• **${ev.title}** ${signupStatus} um *${ev.time}* (Erstellt von ${ev.creator}) - [Zum Event](https://discord.com/channels/${interaction.guildId}/${ev.channelId}/${msgId})\n`;
                 }
                 dashboardEmbed.addFields({ name: 'Geplante Events', value: eventListText });
             }
@@ -257,7 +285,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
@@ -292,7 +320,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
@@ -382,7 +410,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.2 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.3 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
@@ -424,7 +452,6 @@ client.on('messageCreate', async (message) => {
                 signups: new Map()
             });
 
-            // Dashboard direkt aktualisieren, damit das neue Event mit (0/5) auftaucht
             await updateAllDashboards();
 
             const deleteBtn = new ButtonBuilder()
