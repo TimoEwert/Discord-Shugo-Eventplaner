@@ -482,7 +482,7 @@ client.on('messageCreate', async (message) => {
             const offsetHours = isDST ? '+02:00' : '+01:00';
 
             const isoWithOffset = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00${offsetHours}`;
-            expireTimestamp = new Date(isoWithOffset).getTime();
+            expireTimestamp = new Date(isoWithOffset).getTime() + (15 * 60 * 1000);
             
             console.log(`[Auto-Delete Parser] Event "${session.title}" für deutsche Zeit geparst. Ziel-Timestamp: ${expireTimestamp}`);
         } catch (e) {
