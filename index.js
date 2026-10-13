@@ -93,9 +93,9 @@ const PREDEFINED_EVENT_TITLES = [
     { label: 'Grimmhornhöhle (Erkundung)', value: 'Grimmhornhöhle Erkundung', description: 'Dungeon Erkundung', emoji: '🗺️', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/Grimmhornhoehle.jpg' },
     { label: 'Grimmhornhöhle (Eroberung)', value: 'Grimmhornhöhle Eroberung', description: 'Dungeon Eroberung', emoji: '⚔️', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/Grimmhornhoehle.jpg' },
     { label: 'Abyss Raid', value: 'Abyss Raid', description: 'Abyss Raid', emoji: '🔥', bgImage: null },
-    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨', bgImage: null },
-    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️', bgImage: null },
-    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾', bgImage: null },
+    { label: 'Transzendenz', value: 'Transzendenz', description: 'Transzendenz', emoji: '✨', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/Transzendenz.jpg' },
+    { label: 'Arena', value: 'Arena', description: 'Arena', emoji: '🛡️', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/Arena.jpg' },
+    { label: 'Farming', value: 'Farming', description: 'Farming', emoji: '🌾', bgImage: 'https://raw.githubusercontent.com/TimoEwert/Discord-Shugo-Eventplaner/main/images/Abys.jpg' },
     { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️', bgImage: null }
 ];
 
