@@ -1,7 +1,7 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.0)
-// Beschreibung: Klarer DM-Wizard (Titel per Dropdown, Datum/Uhrzeit & Beschreibung per Chat),
-// Auto-Delete, Live-Dashboard & Admin-Steuerung in DMs.
+// Projekt: Shugo-Eventplaner (Version 7.1)
+// Beschreibung: DM-Wizard mit Dropdown + Option für "Eigener Titel", Datum/Zeit per Chat, 
+// robustem Auto-Delete, Live-Dashboard & Admin-Steuerung.
 // ==========================================
 
 const { 
@@ -29,14 +29,14 @@ const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
 const wizardSessions = new Map();   // userId -> Wizard State
 
-// Vordefinierte Event-Titel (im Code beliebig erweiterbar)
+// Vordefinierte Event-Titel (plus Option für eigenen Titel)
 const PREDEFINED_EVENT_TITLES = [
     { label: 'Dredgion', value: 'Dredgion Run', description: 'PvPvE Instanz', emoji: '⚔️' },
     { label: 'Tiamat Festung', value: 'Tiamat Festung Raid', description: 'Großer Allianz-Raid', emoji: '🔥' },
     { label: 'Dark Poeta', value: 'Dark Poeta (S-Rank)', description: 'PvE Instanz Farmen', emoji: '👻' },
     { label: 'Event 1', value: 'Event 1 (Custom)', description: 'Benutzerdefiniertes Event 1', emoji: '📌' },
     { label: 'Event 2', value: 'Event 2 (Custom)', description: 'Benutzerdefiniertes Event 2', emoji: '📌' },
-    { label: 'Event 3', value: 'Event 3 (Custom)', description: 'Benutzerdefiniertes Event 3', emoji: '📌' }
+    { label: 'Eigener Titel', value: 'CUSTOM_TITLE', description: 'Gib einen eigenen Event-Namen ein', emoji: '✏️' }
 ];
 
 const commands = [
@@ -114,7 +114,7 @@ setInterval(async () => {
 }, 30000);
 
 client.once('ready', async () => {
-    console.log(`[Shugo-Eventplaner v7.0] Bot ist eingeloggt als ${client.user.tag}!`);
+    console.log(`[Shugo-Eventplaner v7.1] Bot ist eingeloggt als ${client.user.tag}!`);
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -200,20 +200,28 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // Titel per Dropdown ausgewählt -> Frage nach Datum & Uhrzeit per Chat
+    // Titel per Dropdown ausgewählt
     if (interaction.isStringSelectMenu()) {
         const userId = interaction.user.id;
         const session = wizardSessions.get(userId);
 
         if (interaction.customId === 'wizard_title_select' && session) {
-            session.title = interaction.values[0];
-            session.step = 'INPUT_TIME';
-            
-            await interaction.update({ content: `✅ Titel gewählt: **${session.title}**`, components: [] });
+            const selectedVal = interaction.values[0];
 
-            await interaction.user.send({ 
-                content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte einfach im Chat schreiben, z.B. `25.10.2026 20:00`)*' 
-            });
+            if (selectedVal === 'CUSTOM_TITLE') {
+                // Wenn "Eigener Titel" gewählt wurde, fragen wir im Chat nach dem Namen
+                session.step = 'INPUT_CUSTOM_TITLE';
+                await interaction.update({ content: '✏️ Du hast **Eigener Titel** gewählt.', components: [] });
+                await interaction.user.send({ content: 'Bitte schreibe jetzt deinen **gewünschten Event-Namen** in den Chat:' });
+            } else {
+                // Regulärer vordefinierter Titel
+                session.title = selectedVal;
+                session.step = 'INPUT_TIME';
+                await interaction.update({ content: `✅ Titel gewählt: **${session.title}**`, components: [] });
+                await interaction.user.send({ 
+                    content: '🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. `25.10.2026 20:00`)*' 
+                });
+            }
         }
 
         // Klassenauswahl im Event-Kanal
@@ -253,7 +261,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
@@ -285,7 +293,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                         { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                     )
-                    .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
+                    .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
                     .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
@@ -320,7 +328,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// DM-Textnachrichten Handler für Datum/Uhrzeit & Beschreibung
+// DM-Textnachrichten Handler für Eigenen Titel, Datum/Uhrzeit & Beschreibung
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.guild) return;
@@ -329,25 +337,35 @@ client.on('messageCreate', async (message) => {
     const session = wizardSessions.get(userId);
     if (!session) return;
 
-    // --- DATUM & UHRZEIT EMPFANGEN ---
-    if (session.step === 'INPUT_TIME') {
+    // --- 1. EIGENEN TITEL EMPFANGEN ---
+    if (session.step === 'INPUT_CUSTOM_TITLE') {
+        session.title = message.content.trim();
+        session.step = 'INPUT_TIME';
+
+        await message.reply(`✅ Eigener Titel gespeichert: **${session.title}**\n\n🕒 **Schritt 2/3:** Wann findet das Event statt?\n*(Bitte im Chat schreiben, z.B. `25.10.2026 20:00`)*`);
+    }
+
+    // --- 2. DATUM & UHRZEIT EMPFANGEN ---
+    else if (session.step === 'INPUT_TIME') {
         session.timeStr = message.content.trim();
         session.step = 'INPUT_DESC';
 
         await message.reply('📝 **Schritt 3/3:** Bitte schreibe nun noch eine kurze **Beschreibung** oder Taktik in den Chat:');
     }
 
-    // --- BESCHREIBUNG EMPFANGEN & EVENT ERSTELLEN ---
-   let expireTimestamp = null;
+    // --- 3. BESCHREIBUNG EMPFANGEN & EVENT ERSTELLEN (mit robustem Auto-Delete Parser) ---
+    else if (session.step === 'INPUT_DESC') {
+        const eventDesc = message.content.trim();
+        
+        let expireTimestamp = null;
         try {
             const parts = session.timeStr.trim().split(/\s+/);
-            const datePart = parts[0]; // z.B. 25.10.2026
-            const timePart = parts[1]; // z.B. 20:00
+            const datePart = parts[0]; 
+            const timePart = parts[1]; 
 
             const [day, month, year] = datePart.split('.');
             const [hour, minute] = timePart.split(':');
 
-            // Erstellt ein valides ISO-Datum (YYYY-MM-DDTHH:MM:00)
             const isoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
             expireTimestamp = new Date(isoString).getTime();
             
@@ -355,6 +373,7 @@ client.on('messageCreate', async (message) => {
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
+
         try {
             const targetChannel = await client.channels.fetch(session.channelId);
             
@@ -367,7 +386,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.0 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.1 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
