@@ -1,0 +1,12 @@
+{
+  "name": "discord-shugo-eventplaner",
+  "version": "2.0.0",
+  "description": "Discord-Shugo-Eventplaner - Event-Bot mit DM-Wizard und Gruppensuche",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.0"
+  }
+}

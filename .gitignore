@@ -1,0 +1,5 @@
+# Node Module ausschließen
+node_modules/
+
+# Lokale Umgebungsvariablen (Token etc.) niemals zu GitHub pushen!
+.env
