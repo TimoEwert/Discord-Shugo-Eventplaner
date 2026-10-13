@@ -1,5 +1,4 @@
-# Node Module ausschließen
+# Node Module und Laufzeit-Dateien ausschließen
 node_modules/
-
-# Lokale Umgebungsvariablen (Token etc.) niemals zu GitHub pushen!
+events.json
 .env
