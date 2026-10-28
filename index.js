@@ -1,7 +1,7 @@
 // ==========================================
-// Projekt: Shugo-Eventplaner (Version 7.6)
+// Projekt: Shugo-Eventplaner (Version 7.7)
 // Beschreibung: DM-Wizard, Eigener Titel, Auto-Delete mit Europe/Berlin Zeitzonenfix, 
-// Live-Dashboard und titelbezogene Event-Banner (Bilder).
+// Live-Dashboard, titelbezogene Event-Banner & konfigurierbarer Löschzeit.
 // Code by Cyrill 
 // ==========================================
 
@@ -29,6 +29,13 @@ const client = new Client({
 });
 
 const DATA_FILE = path.join(__dirname, 'events.json');
+
+// ==========================================
+// NEU: Globale Konfiguration für das Auto-Delete
+// Hier kannst du einstellen, wie viele Minuten nach dem Event-Start
+// die Nachricht automatisch gelöscht werden soll. (z. B. 15, 30, 60 Minuten)
+// ==========================================
+const AUTO_DELETE_DELAY_MINUTES = 15;
 
 const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
@@ -196,7 +203,7 @@ setInterval(async () => {
 
 client.once('ready', async () => {
     loadEventsFromDisk();
-    console.log('[Shugo-Eventplaner v7.6] Bot ist eingeloggt!');
+    console.log('[Shugo-Eventplaner v7.7] Bot ist eingeloggt!');
     try {
         await client.application.commands.set(commands);
         console.log('Slash Commands erfolgreich registriert.');
@@ -366,7 +373,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                 { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
             )
-            .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+            .setFooter({ text: 'Shugo-Eventplaner v7.7 - Wähle deine Klasse unten aus.' })
             .setTimestamp();
 
             await interaction.update({ embeds: [updatedEmbed] });
@@ -405,7 +412,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '👑 Erstellt von', value: eventData.creator, inline: true },
                     { name: '👥 Aufstellung / Anmeldungen', value: signupText, inline: false }
                 )
-                .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+                .setFooter({ text: 'Shugo-Eventplaner v7.7 - Wähle deine Klasse unten aus.' })
                 .setTimestamp();
 
                 await interaction.update({ embeds: [updatedEmbed] });
@@ -479,19 +486,9 @@ client.on('messageCreate', async (message) => {
             // Erstelle ein ISO-String-Format ohne Offset (lokale Zeit als Basis)
             const localIsoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
             
-            // Wir ermitteln den exakten Offset für Europe/Berlin zu genau diesem Datum/Uhrzeit
+            // Ziel-Datumsobjekt und Offset-Berechnung für Europe/Berlin
             const targetDateObj = new Date(localIsoString);
             
-            // Finde heraus, ob Berlin zu diesem Zeitpunkt Sommerzeit (CEST, UTC+2) oder Winterzeit (CET, UTC+1) hat
-            const formatter = new Intl.DateTimeFormat('en-US', {
-                timeZone: 'Europe/Berlin',
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit',
-                hour12: false
-            });
-            
-            // Wir nutzen einen Trick: Wir berechnen den Offset über die Differenz der Zeitzonen-Strings
-            // Sauberer & robuster Weg in Node.js ohne externe Libraries (wie moment-timezone):
             const utcDate = new Date(targetDateObj.toLocaleString('en-US', { timeZone: 'UTC' }));
             const tzDate = new Date(targetDateObj.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
             const offsetMs = tzDate.getTime() - utcDate.getTime();
@@ -499,10 +496,12 @@ client.on('messageCreate', async (message) => {
             // Event-Startzeit in Millisekunden UTC berechnen
             const eventStartTimeUtc = targetDateObj.getTime() - offsetMs;
             
-            // 15 Minuten nach Event-Start löschen
-            expireTimestamp = eventStartTimeUtc + (15 * 60 * 1000);
+            // ==========================================
+            // NEU: Verwendung der globalen Variable für die Löschzeit nach Start
+            // ==========================================
+            expireTimestamp = eventStartTimeUtc + (AUTO_DELETE_DELAY_MINUTES * 60 * 1000);
             
-            console.log(`[Auto-Delete Parser v7.6] Event "${session.title}" geparst. Lösch-Timestamp (Epoch): ${expireTimestamp}`);
+            console.log(`[Auto-Delete Parser v7.7] Event "${session.title}" geparst. Lösch-Timestamp (Epoch, nach ${AUTO_DELETE_DELAY_MINUTES} Min.): ${expireTimestamp}`);
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
@@ -524,7 +523,7 @@ client.on('messageCreate', async (message) => {
                 { name: '👑 Erstellt von', value: `<@${userId}>`, inline: true },
                 { name: '👥 Aufstellung / Anmeldungen', value: '*Noch keine Anmeldungen*', inline: false }
             )
-            .setFooter({ text: 'Shugo-Eventplaner v7.6 - Wähle deine Klasse unten aus.' })
+            .setFooter({ text: 'Shugo-Eventplaner v7.7 - Wähle deine Klasse unten aus.' })
             .setTimestamp();
 
             const classSelectMenu = new StringSelectMenuBuilder()
