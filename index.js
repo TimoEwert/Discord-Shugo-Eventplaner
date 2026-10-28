@@ -476,15 +476,33 @@ client.on('messageCreate', async (message) => {
             const [day, month, year] = datePart.split('.');
             const [hour, minute] = timePart.split(':');
 
-            // Zeitzonensicherer Parser für Deutschland (Europe/Berlin)
-            const checkDstDate = new Date(year, month - 1, day);
-            const isDST = new Date(year, 5, 1).getTimezoneOffset() === checkDstDate.getTimezoneOffset();
-            const offsetHours = isDST ? '+02:00' : '+01:00';
-
-            const isoWithOffset = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00${offsetHours}`;
-            expireTimestamp = new Date(isoWithOffset).getTime() + (15 * 60 * 1000);
+            // Erstelle ein ISO-String-Format ohne Offset (lokale Zeit als Basis)
+            const localIsoString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
             
-            console.log(`[Auto-Delete Parser] Event "${session.title}" für deutsche Zeit geparst. Ziel-Timestamp: ${expireTimestamp}`);
+            // Wir ermitteln den exakten Offset für Europe/Berlin zu genau diesem Datum/Uhrzeit
+            const targetDateObj = new Date(localIsoString);
+            
+            // Finde heraus, ob Berlin zu diesem Zeitpunkt Sommerzeit (CEST, UTC+2) oder Winterzeit (CET, UTC+1) hat
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Europe/Berlin',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            });
+            
+            // Wir nutzen einen Trick: Wir berechnen den Offset über die Differenz der Zeitzonen-Strings
+            // Sauberer & robuster Weg in Node.js ohne externe Libraries (wie moment-timezone):
+            const utcDate = new Date(targetDateObj.toLocaleString('en-US', { timeZone: 'UTC' }));
+            const tzDate = new Date(targetDateObj.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+            const offsetMs = tzDate.getTime() - utcDate.getTime();
+
+            // Event-Startzeit in Millisekunden UTC berechnen
+            const eventStartTimeUtc = targetDateObj.getTime() - offsetMs;
+            
+            // 15 Minuten nach Event-Start löschen
+            expireTimestamp = eventStartTimeUtc + (15 * 60 * 1000);
+            
+            console.log(`[Auto-Delete Parser v7.6] Event "${session.title}" geparst. Lösch-Timestamp (Epoch): ${expireTimestamp}`);
         } catch (e) {
             console.error('Fehler beim Parsen des Auto-Delete Timestamps:', e);
         }
