@@ -35,7 +35,7 @@ const DATA_FILE = path.join(__dirname, 'events.json');
 // Hier kannst du einstellen, wie viele Minuten nach dem Event-Start
 // die Nachricht automatisch gelöscht werden soll. (z. B. 15, 30, 60 Minuten)
 // ==========================================
-const AUTO_DELETE_DELAY_MINUTES = 15;
+const AUTO_DELETE_DELAY_MINUTES = 30;
 
 const activeEvents = new Map();     // messageId -> EventData
 const activeDashboards = new Map(); // channelId -> dashboardMessageId
